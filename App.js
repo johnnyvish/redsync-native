@@ -17,6 +17,7 @@ export default function App() {
   const [transcription, setTranscription] = useState(null);
   const breathingAnimation = useRef(null);
 
+  // Converts speech to text by sending a base64 audio file to whisper API
   async function speechToText(audioUri) {
     const audioBase64 = await convertAudioToBase64(audioUri);
     try {
@@ -41,16 +42,12 @@ export default function App() {
     }
   }
 
-  const getFileExtension = (uri) => {
-    return uri.split(".").pop();
-  };
-
+  // Reads the user audio recording from its filepath and converts it to Base64 format for easier transmission
   const convertAudioToBase64 = async (audioUri) => {
     try {
       const fileContent = await FileSystem.readAsStringAsync(audioUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log(fileContent);
       return fileContent;
     } catch (error) {
       console.error("Error reading audio file:", error);
@@ -58,18 +55,26 @@ export default function App() {
     }
   };
 
+  // confirming the audio file type for debugging
+  const getFileExtension = (uri) => {
+    return uri.split(".").pop();
+  };
+
+  // confirming speech to text conversion for debugging
   useEffect(() => {
     if (transcription) {
       console.log(transcription);
     }
   }, [transcription]);
 
+  // request user mic access on load
   useEffect(() => {
     (async () => {
       await Audio.requestPermissionsAsync();
     })();
   }, []);
 
+  // start recording in wav format and save audio object in recording state variable
   async function startRecording() {
     try {
       await Audio.setAudioModeAsync({
@@ -78,7 +83,7 @@ export default function App() {
       });
       const recordingOptions = {
         android: {
-          extension: ".m4a",
+          extension: ".wav",
           outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
           audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
           sampleRate: 44100,
@@ -86,7 +91,7 @@ export default function App() {
           bitRate: 128000,
         },
         ios: {
-          extension: ".m4a",
+          extension: ".wav",
           audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_MAX,
           sampleRate: 44100,
           numberOfChannels: 2,
@@ -103,6 +108,7 @@ export default function App() {
     }
   }
 
+  // stop recording and use the filepath to play audio and convert it to text
   async function stopRecording() {
     try {
       await recording.stopAndUnloadAsync();
@@ -115,6 +121,7 @@ export default function App() {
     }
   }
 
+  // play audio from filepath
   async function playSound(uri) {
     try {
       const { sound } = await Audio.Sound.createAsync({ uri });
@@ -124,6 +131,7 @@ export default function App() {
     }
   }
 
+  // toggle agent circle animation, and start or stop recording accordingly.
   function toggleBreathingAnimation() {
     if (isListening) {
       breathingAnimation.current.stop();
