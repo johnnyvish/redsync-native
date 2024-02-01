@@ -8,12 +8,61 @@ import {
   Text,
 } from "react-native";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 
 export default function App() {
   const scaleAnimation = useRef(new Animated.Value(1)).current;
   const [isListening, setIsListening] = useState(false);
   const [recording, setRecording] = useState(null);
+  const [transcription, setTranscription] = useState(null);
   const breathingAnimation = useRef(null);
+
+  async function speechToText(audioUri) {
+    const audioBase64 = await convertAudioToBase64(audioUri);
+    try {
+      const response = await fetch(
+        "https://redsync.vercel.app/api/speechToText",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ audio: audioBase64 }),
+        }
+      );
+      const data = await response.json();
+      if (data.result) {
+        setTranscription(data.result);
+      } else {
+        console.error("API did not return transcription");
+      }
+    } catch (error) {
+      console.error("Error sending audio to server:", error);
+    }
+  }
+
+  const getFileExtension = (uri) => {
+    return uri.split(".").pop();
+  };
+
+  const convertAudioToBase64 = async (audioUri) => {
+    try {
+      const fileContent = await FileSystem.readAsStringAsync(audioUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log(fileContent);
+      return fileContent;
+    } catch (error) {
+      console.error("Error reading audio file:", error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (transcription) {
+      console.log(transcription);
+    }
+  }, [transcription]);
 
   useEffect(() => {
     (async () => {
@@ -27,9 +76,27 @@ export default function App() {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY
-      );
+      const recordingOptions = {
+        android: {
+          extension: ".m4a",
+          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
+          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".m4a",
+          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_MAX,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+      };
+      const { recording } = await Audio.Recording.createAsync(recordingOptions);
       setRecording(recording);
     } catch (err) {
       console.error("Failed to start recording", err);
@@ -41,6 +108,8 @@ export default function App() {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       playSound(uri);
+      speechToText(uri);
+      console.log(getFileExtension(uri));
     } catch (error) {
       console.error("Failed to stop recording", error);
     }
@@ -100,6 +169,7 @@ export default function App() {
       <Text style={[styles.listeningText, { opacity: isListening ? 1 : 0 }]}>
         listening...
       </Text>
+      <Text style={[styles.listeningText]}>{transcription}</Text>
       <StatusBar style="auto" />
     </View>
   );
